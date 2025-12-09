@@ -1568,7 +1568,11 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
             return;
         }
 
-        // Create CircleManager if needed
+        // Create managers if needed - LineManager first so circles render on top
+        if (mDrawingLineManager == null) {
+            mDrawingLineManager = new LineManager(this, mMap, mMap.getStyle());
+            Log.d(LOG_TAG, "addDrawingVertex: created LineManager");
+        }
         if (mDrawingCircleManager == null) {
             mDrawingCircleManager = new CircleManager(this, mMap, mMap.getStyle());
             Log.d(LOG_TAG, "addDrawingVertex: created CircleManager");
@@ -1594,10 +1598,9 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
             return;
         }
 
-        // Create LineManager if needed
+        // LineManager is created in addDrawingVertex to ensure correct z-order
         if (mDrawingLineManager == null) {
             mDrawingLineManager = new LineManager(this, mMap, mMap.getStyle());
-            Log.d(LOG_TAG, "updateDrawingLine: created LineManager");
         }
 
         // Build LatLng list
@@ -1617,7 +1620,7 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
         // Create new line
         LineOptions options = new LineOptions()
             .withLatLngs(points)
-            .withLineColor("#FFFF00")
+            .withLineColor("#FFFFFF")
             .withLineWidth(3f);
 
         mDrawingLine = mDrawingLineManager.create(options);

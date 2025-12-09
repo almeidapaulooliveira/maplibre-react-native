@@ -184,6 +184,37 @@ public class MLRNMapViewManager extends AbstractEventEmitter<MLRNMapView> {
         mapView.setTintColor(tintColor);
     }
 
+    @ReactProp(name = "instantTapEnabled")
+    public void setInstantTapEnabled(MLRNMapView mapView, boolean enabled) {
+        mapView.setInstantTapEnabled(enabled);
+    }
+
+    @ReactProp(name = "addDrawingVertex")
+    public void setAddDrawingVertex(MLRNMapView mapView, @Nullable ReadableMap vertex) {
+        if (vertex == null) return;
+        Log.d(LOG_TAG, "setAddDrawingVertex called with: " + vertex.toString());
+        mapView.addDrawingVertex(
+            vertex.getString("id"),
+            vertex.getDouble("lat"),
+            vertex.getDouble("lng")
+        );
+    }
+
+    @ReactProp(name = "updateDrawingLine")
+    public void setUpdateDrawingLine(MLRNMapView mapView, @Nullable ReadableArray coordinates) {
+        if (coordinates == null) return;
+        Log.d(LOG_TAG, "setUpdateDrawingLine called with: " + coordinates.size() + " points");
+        mapView.updateDrawingLine(coordinates);
+    }
+
+    @ReactProp(name = "clearDrawing")
+    public void setClearDrawing(MLRNMapView mapView, boolean clear) {
+        if (clear) {
+            Log.d(LOG_TAG, "setClearDrawing called");
+            mapView.clearDrawing();
+        }
+    }
+
     //endregion
 
     //region Custom Events

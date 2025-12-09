@@ -10,6 +10,7 @@ import android.os.Handler;
 import androidx.annotation.NonNull;
 
 import android.util.DisplayMetrics;
+import android.util.Log;
 import android.util.Pair;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -45,6 +46,13 @@ import org.maplibre.android.plugins.annotation.OnSymbolClickListener;
 import org.maplibre.android.plugins.annotation.OnSymbolDragListener;
 import org.maplibre.android.plugins.annotation.Symbol;
 import org.maplibre.android.plugins.annotation.SymbolManager;
+import org.maplibre.android.plugins.annotation.SymbolOptions;
+import org.maplibre.android.plugins.annotation.Circle;
+import org.maplibre.android.plugins.annotation.CircleManager;
+import org.maplibre.android.plugins.annotation.CircleOptions;
+import org.maplibre.android.plugins.annotation.Line;
+import org.maplibre.android.plugins.annotation.LineManager;
+import org.maplibre.android.plugins.annotation.LineOptions;
 import org.maplibre.android.style.expressions.Expression;
 import org.maplibre.android.style.layers.Layer;
 import org.maplibre.android.style.layers.Property;
@@ -134,6 +142,16 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
     private Boolean mZoomEnabled;
 
     private SymbolManager symbolManager;
+    private Map<String, Symbol> mManagedSymbols = new HashMap<>();
+
+    // Native drawing managers for instant vertex/line rendering
+    private CircleManager mDrawingCircleManager;
+    private LineManager mDrawingLineManager;
+    private Map<String, Circle> mDrawingCircles = new HashMap<>();
+    private Line mDrawingLine;
+
+    private InstantTapDetector mInstantTapDetector;
+    private boolean mInstantTapEnabled = false;
 
     private long mActiveMarkerID = -1;
 
@@ -170,6 +188,17 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
         mHandler = new Handler();
 
         mMapStyle = MLRNModule.DEFAULT_STYLE_URL;
+
+        // Instant tap detector for immediate tap response (bypasses 300ms double-tap wait)
+        mInstantTapDetector = new InstantTapDetector(context);
+        mInstantTapDetector.setListener(e -> {
+            if (mMap != null) {
+                PointF screenPoint = new PointF(e.getX(), e.getY());
+                LatLng point = mMap.getProjection().fromScreenLocation(screenPoint);
+                MapClickEvent event = new MapClickEvent(MLRNMapView.this, point, screenPoint);
+                mManager.handleEvent(event);
+            }
+        });
 
         setLifecycleListeners();
 
@@ -579,6 +608,11 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
 
     @Override
     public boolean onTouchEvent(MotionEvent ev) {
+        // Instant tap mode - fires immediately, no double-tap wait
+        if (mInstantTapEnabled && mInstantTapDetector.onTouchEvent(ev)) {
+            return true;
+        }
+
         boolean result = super.onTouchEvent(ev);
 
         if (result && mScrollEnabled) {
@@ -586,6 +620,11 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
         }
 
         return result;
+    }
+
+    public void setInstantTapEnabled(boolean enabled) {
+        mInstantTapEnabled = enabled;
+        mInstantTapDetector.setEnabled(enabled);
     }
 
     @Override
@@ -1517,5 +1556,90 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
         if (mLocationComponentManager == null)
             return;
         mLocationComponentManager.update(getMapboxMap().getStyle());
+    }
+
+    // ==================== Native Drawing Methods ====================
+    // These methods provide instant visual feedback during polygon drawing
+    // by directly using CircleManager/LineManager instead of React re-renders
+
+    public void addDrawingVertex(String id, double lat, double lng) {
+        if (mMap == null || mMap.getStyle() == null) {
+            Log.w(LOG_TAG, "addDrawingVertex: map or style not ready");
+            return;
+        }
+
+        // Create CircleManager if needed
+        if (mDrawingCircleManager == null) {
+            mDrawingCircleManager = new CircleManager(this, mMap, mMap.getStyle());
+            Log.d(LOG_TAG, "addDrawingVertex: created CircleManager");
+        }
+
+        // Create circle options
+        CircleOptions options = new CircleOptions()
+            .withLatLng(new LatLng(lat, lng))
+            .withCircleRadius(8f)
+            .withCircleColor("#FFFFFF")
+            .withCircleStrokeColor("#000000")
+            .withCircleStrokeWidth(2f);
+
+        Circle circle = mDrawingCircleManager.create(options);
+        mDrawingCircles.put(id, circle);
+
+        Log.d(LOG_TAG, "addDrawingVertex: created circle " + id + " at " + lat + "," + lng);
+    }
+
+    public void updateDrawingLine(ReadableArray coordinates) {
+        if (mMap == null || mMap.getStyle() == null) {
+            Log.w(LOG_TAG, "updateDrawingLine: map or style not ready");
+            return;
+        }
+
+        // Create LineManager if needed
+        if (mDrawingLineManager == null) {
+            mDrawingLineManager = new LineManager(this, mMap, mMap.getStyle());
+            Log.d(LOG_TAG, "updateDrawingLine: created LineManager");
+        }
+
+        // Build LatLng list
+        List<LatLng> points = new ArrayList<>();
+        for (int i = 0; i < coordinates.size(); i++) {
+            ReadableArray coord = coordinates.getArray(i);
+            double lng = coord.getDouble(0);
+            double lat = coord.getDouble(1);
+            points.add(new LatLng(lat, lng));
+        }
+
+        // Remove old line
+        if (mDrawingLine != null) {
+            mDrawingLineManager.delete(mDrawingLine);
+        }
+
+        // Create new line
+        LineOptions options = new LineOptions()
+            .withLatLngs(points)
+            .withLineColor("#FFFF00")
+            .withLineWidth(3f);
+
+        mDrawingLine = mDrawingLineManager.create(options);
+
+        Log.d(LOG_TAG, "updateDrawingLine: created line with " + points.size() + " points");
+    }
+
+    public void clearDrawing() {
+        // Clear all circles
+        if (mDrawingCircleManager != null && !mDrawingCircles.isEmpty()) {
+            for (Circle circle : mDrawingCircles.values()) {
+                mDrawingCircleManager.delete(circle);
+            }
+            mDrawingCircles.clear();
+            Log.d(LOG_TAG, "clearDrawing: cleared circles");
+        }
+
+        // Clear line
+        if (mDrawingLineManager != null && mDrawingLine != null) {
+            mDrawingLineManager.delete(mDrawingLine);
+            mDrawingLine = null;
+            Log.d(LOG_TAG, "clearDrawing: cleared line");
+        }
     }
 }

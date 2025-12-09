@@ -149,6 +149,11 @@ interface MapViewProps extends BaseProps {
    */
   surfaceView?: boolean;
   /**
+   * [Android only] Enable instant tap mode - fires tap events immediately without waiting for double-tap timeout (~300ms).
+   * Useful for drawing/editing modes where immediate response is needed.
+   */
+  instantTapEnabled?: boolean;
+  /**
    * Map press listener, gets called when a user presses the map
    */
   onPress?(feature: GeoJSON.Feature): void;
@@ -277,6 +282,9 @@ export interface MapViewRef {
   ) => void;
   showAttribution: () => Promise<void>;
   setNativeProps: (props: NativeProps) => void;
+  addDrawingVertex: (id: string, lat: number, lng: number) => void;
+  updateDrawingLine: (coordinates: GeoJSON.Position[]) => void;
+  clearDrawing: () => void;
 }
 
 /**
@@ -398,6 +406,9 @@ export const MapView = memo(
            */
           showAttribution,
           setNativeProps,
+          addDrawingVertex,
+          updateDrawingLine,
+          clearDrawing,
         }),
       );
 
@@ -771,6 +782,25 @@ export const MapView = memo(
         }
       };
 
+      // Native drawing methods for instant vertex/line rendering
+      const addDrawingVertex = (id: string, lat: number, lng: number): void => {
+        if (_nativeRef.current) {
+          _nativeRef.current.setNativeProps({ addDrawingVertex: { id, lat, lng } });
+        }
+      };
+
+      const updateDrawingLine = (coordinates: GeoJSON.Position[]): void => {
+        if (_nativeRef.current) {
+          _nativeRef.current.setNativeProps({ updateDrawingLine: coordinates });
+        }
+      };
+
+      const clearDrawing = (): void => {
+        if (_nativeRef.current) {
+          _nativeRef.current.setNativeProps({ clearDrawing: true });
+        }
+      };
+
       const nativeProps = useMemo(() => {
         const { mapStyle, ...otherProps } = props;
 
@@ -792,6 +822,7 @@ export const MapView = memo(
           attributionEnabled,
           logoEnabled,
           surfaceView,
+          instantTapEnabled: props.instantTapEnabled,
           regionWillChangeDebounceTime,
           regionDidChangeDebounceTime,
           mapStyle: nativeMapStyle,

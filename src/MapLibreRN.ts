@@ -6,6 +6,7 @@ export {
   type CameraAnimationMode,
   type CameraBounds,
   type CameraRef,
+  type CameraStop,
 } from "./components/Camera";
 export {
   MapView,
@@ -67,10 +68,6 @@ export {
 } from "./modules/snapshot/SnapshotManager";
 export type { SnapshotInputOptions } from "./modules/snapshot/SnapshotOptions";
 
-export type { MapLibreRNEvent } from "./types/MapLibreRNEvent";
-
-export { Animated } from "./utils/animated/Animated";
-export { Logger, type LogLevel } from "./utils/Logger";
 export type {
   FillLayerStyle,
   LineLayerStyle,
@@ -82,6 +79,13 @@ export type {
   HillshadeLayerStyle,
   BackgroundLayerStyle,
   LightLayerStyle,
+  Expression,
 } from "./types/MapLibreRNStyles";
+
+export type { MapLibreRNEvent } from "./types/MapLibreRNEvent";
+export type { OnPressEvent } from "./types/OnPressEvent";
+
+export { Animated } from "./utils/animated/Animated";
+export { Logger, type LogLevel } from "./utils/Logger";
 
 export type { MapLibrePluginProps } from "./plugin/MapLibrePluginProps";

@@ -15,6 +15,7 @@ RCT_EXPORT_VIEW_PROPERTY(shape, NSString)
 
 RCT_EXPORT_VIEW_PROPERTY(cluster, NSNumber)
 RCT_EXPORT_VIEW_PROPERTY(clusterRadius, NSNumber)
+RCT_EXPORT_VIEW_PROPERTY(clusterMinPoints, NSNumber)
 RCT_EXPORT_VIEW_PROPERTY(clusterMaxZoomLevel, NSNumber)
 RCT_EXPORT_VIEW_PROPERTY(clusterProperties, NSDictionary)
 RCT_EXPORT_VIEW_PROPERTY(maxZoomLevel, NSNumber)
@@ -41,10 +42,10 @@ RCT_EXPORT_METHOD(features : (nonnull NSNumber *)reactTag withFilter : (NSArray 
     UIView *view = viewRegistry[reactTag];
     MLRNShapeSource *shapeSource = nil;
 
-    if ([shapeSource isKindOfClass:[MLRNShapeSource class]]) {
+    if ([view isKindOfClass:[MLRNShapeSource class]]) {
       shapeSource = (MLRNShapeSource *)view;
     } else {
-      RCTLogError(@"Invalid react tag, could not find MLRNMapView");
+      RCTLogError(@"Invalid react tag, could not find MLRNShapeSource");
       return;
     }
 

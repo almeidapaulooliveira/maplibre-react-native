@@ -1,4 +1,12 @@
-[![MapLibre Logo](https://maplibre.org/img/maplibre-logo-big.svg)](https://maplibre.org)
+<p align="center">
+  <a href="https://maplibre.org">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://maplibre.org/img/maplibre-logos/maplibre-logo-for-dark-bg.svg">
+      <source media="(prefers-color-scheme: light)" srcset="https://maplibre.org/img/maplibre-logos/maplibre-logo-for-light-bg.svg">
+      <img alt="MapLibre Logo" src="https://maplibre.org/img/maplibre-logos/maplibre-logo-for-light-bg.svg" width="200">
+    </picture>
+  </a>
+</p>
 
 # MapLibre React Native
 
@@ -9,8 +17,15 @@
 _React Native library for creating maps
 with [MapLibre Native for Android & iOS](https://github.com/maplibre/maplibre-gl-native)._
 
+> [!IMPORTANT]
+> Support for the new architecture with v10 is only through the interoperability layer. There are still quite a few
+> [issues](https://github.com/maplibre/maplibre-react-native/issues?q=is%3Aissue%20state%3Aopen%20type%3ABug%20label%3A%22Architecture%3A%20New%22),
+> when used with the new architecture. Switch to the v11 alpha releases on the
+> [`alpha`](https://github.com/maplibre/maplibre-react-native/tree/alpha) branch for better support of the new
+> architecture.
+
 This project originated as a fork of [rnmapbox](https://github.com/rnmapbox/maps), a community-maintained
-React Native library for building maps with the Mapbox iOS and Android mobile SDKs. The original product
+React Native library for building maps with the Mapbox iOS and Android mobile SDKs. The original library
 supported both Mapbox and MapLibre for some time, but as the MapLibre and Mapbox SDKs have
 diverged, it has become necessary to separate the projects into specific wrappers by underlying renderer.
 

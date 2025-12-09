@@ -16,13 +16,13 @@ jobs:
         new-arch: [false, true]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup
         uses: ./.github/actions/setup
 
       - name: Setup Azul Zulu OpenJDK
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: zulu
           java-version: 21
@@ -47,7 +47,7 @@ jobs:
         run: yarn react-native build-android --mode release --tasks assembleRelease --extra-params "-PnewArchEnabled=${{ matrix.new-arch }}"
 
       - name: Upload App
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: android-app-${{ matrix.new-arch && 'new' || 'old' }}-arch
           path: ./examples/react-native-app/android/app/build/outputs/apk/release/app-release.apk
@@ -64,7 +64,7 @@ jobs:
         new-arch: [false, true]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Enable KVM Group Permissions
         run: |
@@ -73,7 +73,7 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Gradle cache
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v5
 
       - name: Cache Virtual Device
         uses: actions/cache@v4
@@ -101,7 +101,7 @@ jobs:
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
 
       - name: Download App
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: android-app-${{ matrix.new-arch && 'new' || 'old' }}-arch
           path: ./examples/react-native-app/android/
@@ -120,7 +120,7 @@ jobs:
 
       - name: Upload Report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Android Report ${{ matrix.new-arch && 'new' || 'old' }} Arch
           path: |

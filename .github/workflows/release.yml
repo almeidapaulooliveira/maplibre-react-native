@@ -21,7 +21,7 @@ jobs:
       pull-requests: write
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/setup
       - name: Audit Signatures
         # `rm -rf ./docs/node_modules` is necessary due to aliased dependencies breaking signatures
@@ -31,5 +31,4 @@ jobs:
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_ORG_TOKEN }}
         run: yarn semantic-release

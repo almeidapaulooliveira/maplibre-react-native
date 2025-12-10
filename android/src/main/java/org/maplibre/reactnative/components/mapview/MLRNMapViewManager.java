@@ -223,6 +223,12 @@ public class MLRNMapViewManager extends AbstractEventEmitter<MLRNMapView> {
         }
     }
 
+    @ReactProp(name = "circleDrawingEnabled")
+    public void setCircleDrawingEnabled(MLRNMapView mapView, boolean enabled) {
+        Log.d(LOG_TAG, "setCircleDrawingEnabled: " + enabled);
+        mapView.setCircleDrawingEnabled(enabled);
+    }
+
     //endregion
 
     //region Custom Events
@@ -236,6 +242,7 @@ public class MLRNMapViewManager extends AbstractEventEmitter<MLRNMapView> {
                 .put(EventKeys.MAP_ON_LOCATION_CHANGE, "onLocationChange")
                 .put(EventKeys.MAP_USER_TRACKING_MODE_CHANGE, "onUserTrackingModeChange")
                 .put(EventKeys.MAP_ANDROID_CALLBACK, "onAndroidCallback")
+                .put(EventKeys.CIRCLE_DRAW_END, "onCircleDrawEnd")
                 .build();
     }
 

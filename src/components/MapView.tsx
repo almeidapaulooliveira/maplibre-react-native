@@ -224,6 +224,20 @@ interface MapViewProps extends BaseProps {
    * Emitted frequency of regionDidChange events
    */
   regionDidChangeDebounceTime?: number;
+  /**
+   * [Android only] Enable circle drawing mode - touch-drag gesture to draw circles.
+   * Touch sets center, drag sets radius, release finalizes.
+   */
+  circleDrawingEnabled?: boolean;
+  /**
+   * [Android only] Callback when circle drawing is completed.
+   * Returns coordinates array (polygon), center point, and radius in meters.
+   */
+  onCircleDrawEnd?: (event: {
+    coordinates: GeoJSON.Position[];
+    center: GeoJSON.Position;
+    radius: number;
+  }) => void;
 
   children?: ReactNode;
 }
@@ -235,10 +249,17 @@ type CallableProps = {
     : never;
 }[keyof MapViewProps];
 
-interface NativeProps extends Omit<MapViewProps, "onPress" | "onLongPress"> {
+interface NativeProps extends Omit<MapViewProps, "onPress" | "onLongPress" | "onCircleDrawEnd"> {
   mapStyle?: string;
   onPress(event: NativeSyntheticEvent<{ payload: GeoJSON.Feature }>): void;
   onLongPress(event: NativeSyntheticEvent<{ payload: GeoJSON.Feature }>): void;
+  onCircleDrawEnd?(event: NativeSyntheticEvent<{
+    payload: {
+      coordinates: number[][];
+      center: number[];
+      radius: number;
+    };
+  }>): void;
 }
 
 export interface MapViewRef {
@@ -623,6 +644,25 @@ export const MapView = memo(
         }
       };
 
+      const _onCircleDrawEnd = (
+        e: NativeSyntheticEvent<{
+          payload: {
+            coordinates: number[][];
+            center: number[];
+            radius: number;
+          };
+        }>,
+      ): void => {
+        if (isFunction(props.onCircleDrawEnd)) {
+          const { coordinates, center, radius } = e.nativeEvent.payload;
+          props.onCircleDrawEnd({
+            coordinates: coordinates as GeoJSON.Position[],
+            center: center as GeoJSON.Position,
+            radius,
+          });
+        }
+      };
+
       const _onRegionWillChange = (payload: RegionPayloadFeature): void => {
         if (isFunction(props.onRegionWillChange)) {
           props.onRegionWillChange(payload);
@@ -810,6 +850,7 @@ export const MapView = memo(
           logoEnabled,
           surfaceView,
           instantTapEnabled: props.instantTapEnabled,
+          circleDrawingEnabled: props.circleDrawingEnabled,
           regionWillChangeDebounceTime,
           regionDidChangeDebounceTime,
           mapStyle: nativeMapStyle,
@@ -836,6 +877,7 @@ export const MapView = memo(
         onLongPress: _onLongPress,
         onMapChange: _onChange,
         onAndroidCallback: isAndroid() ? _onAndroidCallback : undefined,
+        onCircleDrawEnd: isAndroid() ? _onCircleDrawEnd : undefined,
       };
 
       let mapView: ReactElement | null = null;

@@ -29,6 +29,9 @@ public class EventKeys {
     // location events
     public static final String USER_LOCATION_UPDATE = ns("user.location.update");
 
+    // circle drawing events
+    public static final String CIRCLE_DRAW_END = ns("map.circledrawend");
+
     private static String ns(String name) {
         return String.format("%s.%s", NAMESPACE, name);
     }

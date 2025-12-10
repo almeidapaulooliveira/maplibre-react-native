@@ -56,6 +56,11 @@ import org.maplibre.android.plugins.annotation.LineOptions;
 import org.maplibre.android.style.expressions.Expression;
 import org.maplibre.android.style.layers.Layer;
 import org.maplibre.android.style.layers.Property;
+import org.maplibre.geojson.Point;
+import org.maplibre.geojson.Polygon;
+import org.maplibre.turf.TurfConstants;
+import org.maplibre.turf.TurfMeasurement;
+import org.maplibre.turf.TurfTransformation;
 import org.maplibre.reactnative.R;
 import org.maplibre.reactnative.components.AbstractMapFeature;
 import org.maplibre.reactnative.components.annotation.MLRNPointAnnotation;
@@ -71,6 +76,7 @@ import org.maplibre.reactnative.components.styles.light.MLRNLight;
 import org.maplibre.reactnative.components.styles.sources.MLRNShapeSource;
 import org.maplibre.reactnative.components.styles.sources.MLRNSource;
 import org.maplibre.reactnative.events.AndroidCallbackEvent;
+import org.maplibre.reactnative.events.CircleDrawEndEvent;
 import org.maplibre.reactnative.events.IEvent;
 import org.maplibre.reactnative.events.MapChangeEvent;
 import org.maplibre.reactnative.events.MapClickEvent;
@@ -152,6 +158,12 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
 
     private InstantTapDetector mInstantTapDetector;
     private boolean mInstantTapEnabled = false;
+
+    // Circle drawing state
+    private boolean mCircleDrawingEnabled = false;
+    private Point mCircleCenter = null;
+    private Line mCircleOutline = null;
+    private Polygon mCirclePolygon = null;
 
     private long mActiveMarkerID = -1;
 
@@ -608,6 +620,53 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
 
     @Override
     public boolean onTouchEvent(MotionEvent ev) {
+        // Circle drawing mode - touch-drag gesture
+        if (mCircleDrawingEnabled && mMap != null) {
+            int action = ev.getActionMasked();
+            PointF screenPoint = new PointF(ev.getX(), ev.getY());
+            LatLng latLng = mMap.getProjection().fromScreenLocation(screenPoint);
+
+            switch (action) {
+                case MotionEvent.ACTION_DOWN:
+                    // Store center point and disable map panning
+                    mCircleCenter = Point.fromLngLat(latLng.getLongitude(), latLng.getLatitude());
+                    mMap.getUiSettings().setScrollGesturesEnabled(false);
+                    mMap.getUiSettings().setZoomGesturesEnabled(false);
+                    Log.d(LOG_TAG, "Circle draw started at: " + mCircleCenter.longitude() + ", " + mCircleCenter.latitude());
+                    return true;
+
+                case MotionEvent.ACTION_MOVE:
+                    if (mCircleCenter != null) {
+                        Point currentPoint = Point.fromLngLat(latLng.getLongitude(), latLng.getLatitude());
+                        // Calculate geodesic distance in meters
+                        double radius = TurfMeasurement.distance(mCircleCenter, currentPoint, TurfConstants.UNIT_METERS);
+
+                        if (radius > 1) { // Minimum 1 meter radius
+                            // Generate circle polygon with 64 points
+                            mCirclePolygon = TurfTransformation.circle(mCircleCenter, radius, 64, TurfConstants.UNIT_METERS);
+                            updateCircleOutline();
+                        }
+                    }
+                    return true;
+
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    // Re-enable map gestures
+                    mMap.getUiSettings().setScrollGesturesEnabled(mScrollEnabled != null ? mScrollEnabled : true);
+                    mMap.getUiSettings().setZoomGesturesEnabled(mZoomEnabled != null ? mZoomEnabled : true);
+
+                    if (mCirclePolygon != null && mCircleCenter != null) {
+                        // Emit event with final coordinates
+                        emitCircleDrawEnd();
+                        Log.d(LOG_TAG, "Circle draw completed");
+                    }
+
+                    // Clear state
+                    clearCircleDrawing();
+                    return true;
+            }
+        }
+
         // Instant tap mode - fires immediately, no double-tap wait
         if (mInstantTapEnabled && mInstantTapDetector.onTouchEvent(ev)) {
             return true;
@@ -1658,6 +1717,103 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
         if (circle != null && mDrawingCircleManager != null) {
             mDrawingCircleManager.delete(circle);
             Log.d(LOG_TAG, "removeLastDrawingVertex: removed circle " + lastId);
+        }
+    }
+
+    // ==================== Circle Drawing Methods ====================
+
+    public void setCircleDrawingEnabled(boolean enabled) {
+        mCircleDrawingEnabled = enabled;
+        if (!enabled) {
+            clearCircleDrawing();
+        }
+        Log.d(LOG_TAG, "setCircleDrawingEnabled: " + enabled);
+    }
+
+    private void updateCircleOutline() {
+        if (mMap == null || mMap.getStyle() == null || mCirclePolygon == null) {
+            return;
+        }
+
+        // Create line manager if needed
+        if (mDrawingLineManager == null) {
+            mDrawingLineManager = new LineManager(this, mMap, mMap.getStyle());
+        }
+
+        // Remove old outline
+        if (mCircleOutline != null) {
+            mDrawingLineManager.delete(mCircleOutline);
+            mCircleOutline = null;
+        }
+
+        // Extract coordinates from polygon and convert to LatLng list
+        List<List<Point>> rings = mCirclePolygon.coordinates();
+        if (rings.isEmpty() || rings.get(0).isEmpty()) {
+            return;
+        }
+
+        List<LatLng> points = new ArrayList<>();
+        for (Point p : rings.get(0)) {
+            points.add(new LatLng(p.latitude(), p.longitude()));
+        }
+
+        // Create new outline
+        LineOptions options = new LineOptions()
+            .withLatLngs(points)
+            .withLineColor("#FFFFFF")
+            .withLineWidth(3f);
+
+        mCircleOutline = mDrawingLineManager.create(options);
+    }
+
+    private void emitCircleDrawEnd() {
+        if (mCirclePolygon == null) {
+            return;
+        }
+
+        // Convert polygon coordinates to WritableArray
+        WritableArray coordinates = new WritableNativeArray();
+        List<List<Point>> rings = mCirclePolygon.coordinates();
+
+        if (!rings.isEmpty()) {
+            for (Point p : rings.get(0)) {
+                WritableArray coord = new WritableNativeArray();
+                coord.pushDouble(p.longitude());
+                coord.pushDouble(p.latitude());
+                coordinates.pushArray(coord);
+            }
+        }
+
+        // Also include center and radius for convenience
+        WritableMap payload = new WritableNativeMap();
+        payload.putArray("coordinates", coordinates);
+
+        if (mCircleCenter != null) {
+            WritableArray center = new WritableNativeArray();
+            center.pushDouble(mCircleCenter.longitude());
+            center.pushDouble(mCircleCenter.latitude());
+            payload.putArray("center", center);
+
+            // Calculate radius from center to first point
+            if (!rings.isEmpty() && !rings.get(0).isEmpty()) {
+                Point firstPoint = rings.get(0).get(0);
+                double radius = TurfMeasurement.distance(mCircleCenter, firstPoint, TurfConstants.UNIT_METERS);
+                payload.putDouble("radius", radius);
+            }
+        }
+
+        // Emit event to React
+        CircleDrawEndEvent event = new CircleDrawEndEvent(this, payload);
+        mManager.handleEvent(event);
+    }
+
+    private void clearCircleDrawing() {
+        mCircleCenter = null;
+        mCirclePolygon = null;
+
+        if (mCircleOutline != null && mDrawingLineManager != null) {
+            mDrawingLineManager.delete(mCircleOutline);
+            mCircleOutline = null;
         }
     }
 }

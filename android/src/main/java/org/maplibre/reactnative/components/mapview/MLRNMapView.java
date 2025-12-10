@@ -1645,4 +1645,19 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
             Log.d(LOG_TAG, "clearDrawing: cleared line");
         }
     }
+
+    public void removeLastDrawingVertex() {
+        if (mDrawingCircles.isEmpty()) {
+            Log.d(LOG_TAG, "removeLastDrawingVertex: no circles to remove");
+            return;
+        }
+
+        // Find and remove the last circle (by id pattern "v0", "v1", etc.)
+        String lastId = "v" + (mDrawingCircles.size() - 1);
+        Circle circle = mDrawingCircles.remove(lastId);
+        if (circle != null && mDrawingCircleManager != null) {
+            mDrawingCircleManager.delete(circle);
+            Log.d(LOG_TAG, "removeLastDrawingVertex: removed circle " + lastId);
+        }
+    }
 }

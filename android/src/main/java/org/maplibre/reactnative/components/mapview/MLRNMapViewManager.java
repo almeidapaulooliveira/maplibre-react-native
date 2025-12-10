@@ -215,6 +215,14 @@ public class MLRNMapViewManager extends AbstractEventEmitter<MLRNMapView> {
         }
     }
 
+    @ReactProp(name = "removeLastDrawingVertex")
+    public void setRemoveLastDrawingVertex(MLRNMapView mapView, boolean remove) {
+        if (remove) {
+            Log.d(LOG_TAG, "setRemoveLastDrawingVertex called");
+            mapView.removeLastDrawingVertex();
+        }
+    }
+
     //endregion
 
     //region Custom Events

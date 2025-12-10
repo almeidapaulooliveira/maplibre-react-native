@@ -272,6 +272,7 @@ export interface MapViewRef {
   addDrawingVertex: (id: string, lat: number, lng: number) => void;
   updateDrawingLine: (coordinates: GeoJSON.Position[]) => void;
   clearDrawing: () => void;
+  removeLastDrawingVertex: () => void;
 }
 
 /**
@@ -396,6 +397,7 @@ export const MapView = memo(
           addDrawingVertex,
           updateDrawingLine,
           clearDrawing,
+          removeLastDrawingVertex,
         }),
       );
 
@@ -777,6 +779,12 @@ export const MapView = memo(
       const clearDrawing = (): void => {
         if (_nativeRef.current) {
           _nativeRef.current.setNativeProps({ clearDrawing: true });
+        }
+      };
+
+      const removeLastDrawingVertex = (): void => {
+        if (_nativeRef.current) {
+          _nativeRef.current.setNativeProps({ removeLastDrawingVertex: true });
         }
       };
 

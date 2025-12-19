@@ -229,6 +229,14 @@ public class MLRNMapViewManager extends AbstractEventEmitter<MLRNMapView> {
         mapView.setCircleDrawingEnabled(enabled);
     }
 
+    @ReactProp(name = "setLayerOpacity")
+    public void setLayerOpacity(MLRNMapView mapView, @Nullable ReadableMap value) {
+        if (value == null) return;
+        String layerId = value.getString("layerId");
+        double opacity = value.getDouble("opacity");
+        mapView.setLayerOpacity(layerId, (float) opacity);
+    }
+
     //endregion
 
     //region Custom Events

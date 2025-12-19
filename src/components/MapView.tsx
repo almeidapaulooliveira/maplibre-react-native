@@ -294,6 +294,7 @@ export interface MapViewRef {
   updateDrawingLine: (coordinates: GeoJSON.Position[]) => void;
   clearDrawing: () => void;
   removeLastDrawingVertex: () => void;
+  setLayerOpacity: (layerId: string, opacity: number) => void;
 }
 
 /**
@@ -419,6 +420,7 @@ export const MapView = memo(
           updateDrawingLine,
           clearDrawing,
           removeLastDrawingVertex,
+          setLayerOpacity,
         }),
       );
 
@@ -825,6 +827,14 @@ export const MapView = memo(
       const removeLastDrawingVertex = (): void => {
         if (_nativeRef.current) {
           _nativeRef.current.setNativeProps({ removeLastDrawingVertex: true });
+        }
+      };
+
+      const setLayerOpacity = (layerId: string, opacity: number): void => {
+        if (_nativeRef.current) {
+          _nativeRef.current.setNativeProps({
+            setLayerOpacity: { layerId, opacity },
+          });
         }
       };
 

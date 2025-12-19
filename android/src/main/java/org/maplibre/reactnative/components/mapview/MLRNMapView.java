@@ -54,8 +54,10 @@ import org.maplibre.android.plugins.annotation.Line;
 import org.maplibre.android.plugins.annotation.LineManager;
 import org.maplibre.android.plugins.annotation.LineOptions;
 import org.maplibre.android.style.expressions.Expression;
+import org.maplibre.android.style.layers.FillLayer;
 import org.maplibre.android.style.layers.Layer;
 import org.maplibre.android.style.layers.Property;
+import org.maplibre.android.style.layers.PropertyFactory;
 import org.maplibre.geojson.Point;
 import org.maplibre.geojson.Polygon;
 import org.maplibre.turf.TurfConstants;
@@ -1717,6 +1719,33 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
         if (circle != null && mDrawingCircleManager != null) {
             mDrawingCircleManager.delete(circle);
             Log.d(LOG_TAG, "removeLastDrawingVertex: removed circle " + lastId);
+        }
+    }
+
+    /**
+     * Sets the fill opacity of a FillLayer directly, bypassing React re-renders.
+     * Used for animations that need to update frequently without triggering
+     * React reconciliation overhead.
+     *
+     * @param layerId The ID of the fill layer to update
+     * @param opacity The opacity value (0.0 to 1.0)
+     */
+    public void setLayerOpacity(String layerId, float opacity) {
+        if (mMap == null || mMap.getStyle() == null) {
+            Log.w(LOG_TAG, "setLayerOpacity: map or style not ready");
+            return;
+        }
+
+        Layer layer = mMap.getStyle().getLayer(layerId);
+        if (layer == null) {
+            Log.w(LOG_TAG, "setLayerOpacity: layer not found: " + layerId);
+            return;
+        }
+
+        if (layer instanceof FillLayer) {
+            ((FillLayer) layer).setProperties(PropertyFactory.fillOpacity(opacity));
+        } else {
+            Log.w(LOG_TAG, "setLayerOpacity: layer is not a FillLayer: " + layerId);
         }
     }
 

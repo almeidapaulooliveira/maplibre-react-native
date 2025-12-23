@@ -79,6 +79,7 @@ import org.maplibre.reactnative.components.styles.sources.MLRNShapeSource;
 import org.maplibre.reactnative.components.styles.sources.MLRNSource;
 import org.maplibre.reactnative.events.AndroidCallbackEvent;
 import org.maplibre.reactnative.events.CircleDrawEndEvent;
+import org.maplibre.reactnative.events.SquareDrawEndEvent;
 import org.maplibre.reactnative.events.IEvent;
 import org.maplibre.reactnative.events.MapChangeEvent;
 import org.maplibre.reactnative.events.MapClickEvent;
@@ -166,6 +167,13 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
     private Point mCircleCenter = null;
     private Line mCircleOutline = null;
     private Polygon mCirclePolygon = null;
+
+    // Square drawing state
+    private boolean mSquareDrawingEnabled = false;
+    private Point mSquareCenter = null;
+    private Point mSquareStartCorner = null;
+    private Line mSquareOutline = null;
+    private List<Point> mSquareCorners = null;
 
     private long mActiveMarkerID = -1;
 
@@ -665,6 +673,54 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
 
                     // Clear state
                     clearCircleDrawing();
+                    return true;
+            }
+        }
+
+        // Square drawing mode - touch-drag gesture
+        if (mSquareDrawingEnabled && mMap != null) {
+            int action = ev.getActionMasked();
+            PointF screenPoint = new PointF(ev.getX(), ev.getY());
+            LatLng latLng = mMap.getProjection().fromScreenLocation(screenPoint);
+
+            switch (action) {
+                case MotionEvent.ACTION_DOWN:
+                    // Store starting corner point and disable map panning
+                    mSquareStartCorner = Point.fromLngLat(latLng.getLongitude(), latLng.getLatitude());
+                    mMap.getUiSettings().setScrollGesturesEnabled(false);
+                    mMap.getUiSettings().setZoomGesturesEnabled(false);
+                    Log.d(LOG_TAG, "Square draw started at corner: " + mSquareStartCorner.longitude() + ", " + mSquareStartCorner.latitude());
+                    return true;
+
+                case MotionEvent.ACTION_MOVE:
+                    if (mSquareStartCorner != null) {
+                        Point oppositeCorner = Point.fromLngLat(latLng.getLongitude(), latLng.getLatitude());
+                        // Generate axis-aligned square from two opposite corners
+                        mSquareCorners = generateSquareFromCorners(mSquareStartCorner, oppositeCorner);
+                        // Calculate center for the event payload
+                        if (mSquareCorners != null && mSquareCorners.size() == 4) {
+                            double centerLon = (mSquareStartCorner.longitude() + oppositeCorner.longitude()) / 2;
+                            double centerLat = (mSquareStartCorner.latitude() + oppositeCorner.latitude()) / 2;
+                            mSquareCenter = Point.fromLngLat(centerLon, centerLat);
+                            updateSquareOutline();
+                        }
+                    }
+                    return true;
+
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    // Re-enable map gestures
+                    mMap.getUiSettings().setScrollGesturesEnabled(mScrollEnabled != null ? mScrollEnabled : true);
+                    mMap.getUiSettings().setZoomGesturesEnabled(mZoomEnabled != null ? mZoomEnabled : true);
+
+                    if (mSquareCorners != null && mSquareCenter != null && mSquareCorners.size() == 4) {
+                        // Emit event with final coordinates
+                        emitSquareDrawEnd();
+                        Log.d(LOG_TAG, "Square draw completed");
+                    }
+
+                    // Clear state
+                    clearSquareDrawing();
                     return true;
             }
         }
@@ -1843,6 +1899,133 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
         if (mCircleOutline != null && mDrawingLineManager != null) {
             mDrawingLineManager.delete(mCircleOutline);
             mCircleOutline = null;
+        }
+    }
+
+    // ==================== Square Drawing Methods ====================
+
+    public void setSquareDrawingEnabled(boolean enabled) {
+        mSquareDrawingEnabled = enabled;
+        if (!enabled) {
+            clearSquareDrawing();
+        }
+        Log.d(LOG_TAG, "setSquareDrawingEnabled: " + enabled);
+    }
+
+    /**
+     * Generate axis-aligned square corners from two opposite corners.
+     * Corner order: top-left, top-right, bottom-right, bottom-left (clockwise from top-left)
+     */
+    private List<Point> generateSquareFromCorners(Point corner1, Point corner2) {
+        List<Point> corners = new ArrayList<>();
+
+        double lon1 = corner1.longitude();
+        double lat1 = corner1.latitude();
+        double lon2 = corner2.longitude();
+        double lat2 = corner2.latitude();
+
+        // Create axis-aligned rectangle from the two corners
+        double minLon = Math.min(lon1, lon2);
+        double maxLon = Math.max(lon1, lon2);
+        double minLat = Math.min(lat1, lat2);
+        double maxLat = Math.max(lat1, lat2);
+
+        // Check minimum size (roughly 1 meter)
+        double lonDiff = Math.abs(lon2 - lon1);
+        double latDiff = Math.abs(lat2 - lat1);
+        if (lonDiff < 0.00001 && latDiff < 0.00001) {
+            return null; // Too small
+        }
+
+        // Clockwise from top-left: TL, TR, BR, BL
+        corners.add(Point.fromLngLat(minLon, maxLat)); // Top-left
+        corners.add(Point.fromLngLat(maxLon, maxLat)); // Top-right
+        corners.add(Point.fromLngLat(maxLon, minLat)); // Bottom-right
+        corners.add(Point.fromLngLat(minLon, minLat)); // Bottom-left
+
+        return corners;
+    }
+
+    private void updateSquareOutline() {
+        if (mMap == null || mMap.getStyle() == null || mSquareCorners == null || mSquareCorners.size() < 4) {
+            return;
+        }
+
+        // Create line manager if needed
+        if (mDrawingLineManager == null) {
+            mDrawingLineManager = new LineManager(this, mMap, mMap.getStyle());
+        }
+
+        // Remove old outline
+        if (mSquareOutline != null) {
+            mDrawingLineManager.delete(mSquareOutline);
+            mSquareOutline = null;
+        }
+
+        // Build closed polygon path (5 points: 4 corners + closing point)
+        List<LatLng> points = new ArrayList<>();
+        for (Point p : mSquareCorners) {
+            points.add(new LatLng(p.latitude(), p.longitude()));
+        }
+        // Close the square by adding the first point again
+        points.add(new LatLng(mSquareCorners.get(0).latitude(), mSquareCorners.get(0).longitude()));
+
+        // Create new outline
+        LineOptions options = new LineOptions()
+            .withLatLngs(points)
+            .withLineColor("#FFFFFF")
+            .withLineWidth(3f);
+
+        mSquareOutline = mDrawingLineManager.create(options);
+    }
+
+    private void emitSquareDrawEnd() {
+        if (mSquareCorners == null || mSquareCorners.size() < 4) {
+            return;
+        }
+
+        // Build coordinates array (closed polygon: 5 points)
+        WritableArray coordinates = new WritableNativeArray();
+        for (Point p : mSquareCorners) {
+            WritableArray coord = new WritableNativeArray();
+            coord.pushDouble(p.longitude());
+            coord.pushDouble(p.latitude());
+            coordinates.pushArray(coord);
+        }
+        // Close polygon by adding first point again
+        WritableArray closing = new WritableNativeArray();
+        closing.pushDouble(mSquareCorners.get(0).longitude());
+        closing.pushDouble(mSquareCorners.get(0).latitude());
+        coordinates.pushArray(closing);
+
+        WritableMap payload = new WritableNativeMap();
+        payload.putArray("coordinates", coordinates);
+
+        if (mSquareCenter != null) {
+            WritableArray center = new WritableNativeArray();
+            center.pushDouble(mSquareCenter.longitude());
+            center.pushDouble(mSquareCenter.latitude());
+            payload.putArray("center", center);
+
+            // Calculate side length as distance between adjacent corners
+            // corners[0] = TL, corners[1] = TR, so width = distance(TL, TR)
+            double sideLength = TurfMeasurement.distance(mSquareCorners.get(0), mSquareCorners.get(1), TurfConstants.UNIT_METERS);
+            payload.putDouble("sideLength", sideLength);
+        }
+
+        // Emit event to React
+        SquareDrawEndEvent event = new SquareDrawEndEvent(this, payload);
+        mManager.handleEvent(event);
+    }
+
+    private void clearSquareDrawing() {
+        mSquareCenter = null;
+        mSquareStartCorner = null;
+        mSquareCorners = null;
+
+        if (mSquareOutline != null && mDrawingLineManager != null) {
+            mDrawingLineManager.delete(mSquareOutline);
+            mSquareOutline = null;
         }
     }
 }

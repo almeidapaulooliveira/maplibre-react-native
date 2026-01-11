@@ -1695,6 +1695,9 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
             Log.d(LOG_TAG, "addDrawingVertex: created CircleManager");
         }
 
+        // Ensure drawing layers are on top
+        bringDrawingToFront();
+
         // Create circle options
         CircleOptions options = new CircleOptions()
             .withLatLng(new LatLng(lat, lng))
@@ -1779,6 +1782,55 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
     }
 
     /**
+     * Moves drawing layers to the top of the layer stack.
+     * Call when other layers are re-added and cover the drawing.
+     */
+    public void bringDrawingToFront() {
+        Log.d(LOG_TAG, "bringDrawingToFront: called");
+
+        if (mMap == null || mMap.getStyle() == null) {
+            Log.d(LOG_TAG, "bringDrawingToFront: map or style null");
+            return;
+        }
+
+        Style style = mMap.getStyle();
+
+        // Move line layer to top
+        if (mDrawingLineManager != null) {
+            String lineLayerId = mDrawingLineManager.getLayerId();
+            Log.d(LOG_TAG, "bringDrawingToFront: line layer id = " + lineLayerId);
+            Layer lineLayer = style.getLayer(lineLayerId);
+            if (lineLayer != null) {
+                style.removeLayer(lineLayer);
+                style.addLayer(lineLayer);
+                Log.d(LOG_TAG, "bringDrawingToFront: moved line layer");
+            } else {
+                Log.d(LOG_TAG, "bringDrawingToFront: line layer not found");
+            }
+        } else {
+            Log.d(LOG_TAG, "bringDrawingToFront: no line manager");
+        }
+
+        // Move circle layer to top (above line)
+        if (mDrawingCircleManager != null) {
+            String circleLayerId = mDrawingCircleManager.getLayerId();
+            Log.d(LOG_TAG, "bringDrawingToFront: circle layer id = " + circleLayerId);
+            Layer circleLayer = style.getLayer(circleLayerId);
+            if (circleLayer != null) {
+                style.removeLayer(circleLayer);
+                style.addLayer(circleLayer);
+                Log.d(LOG_TAG, "bringDrawingToFront: moved circle layer");
+            } else {
+                Log.d(LOG_TAG, "bringDrawingToFront: circle layer not found");
+            }
+        } else {
+            Log.d(LOG_TAG, "bringDrawingToFront: no circle manager");
+        }
+
+        Log.d(LOG_TAG, "bringDrawingToFront: done");
+    }
+
+    /**
      * Sets the fill opacity of a FillLayer directly, bypassing React re-renders.
      * Used for animations that need to update frequently without triggering
      * React reconciliation overhead.
@@ -1809,7 +1861,9 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
 
     public void setCircleDrawingEnabled(boolean enabled) {
         mCircleDrawingEnabled = enabled;
-        if (!enabled) {
+        if (enabled) {
+            bringDrawingToFront();
+        } else {
             clearCircleDrawing();
         }
         Log.d(LOG_TAG, "setCircleDrawingEnabled: " + enabled);
@@ -1906,7 +1960,9 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
 
     public void setSquareDrawingEnabled(boolean enabled) {
         mSquareDrawingEnabled = enabled;
-        if (!enabled) {
+        if (enabled) {
+            bringDrawingToFront();
+        } else {
             clearSquareDrawing();
         }
         Log.d(LOG_TAG, "setSquareDrawingEnabled: " + enabled);

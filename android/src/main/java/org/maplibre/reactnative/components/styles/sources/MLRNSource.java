@@ -71,6 +71,10 @@ public abstract class MLRNSource<T extends Source> extends AbstractMapFeature {
     }
 
     public void setHitbox(ReadableMap map) {
+        if (map == null) {
+            mTouchHitbox = null;
+            return;
+        }
         Map<String, Double> hitbox = new HashMap<>();
         hitbox.put("width", map.getDouble("width"));
         hitbox.put("height", map.getDouble("height"));

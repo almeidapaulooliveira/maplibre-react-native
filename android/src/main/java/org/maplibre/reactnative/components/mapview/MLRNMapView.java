@@ -3,8 +3,12 @@ package org.maplibre.reactnative.components.mapview;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.LinearGradient;
+import android.graphics.Paint;
 import android.graphics.PointF;
 import android.graphics.RectF;
+import android.graphics.Shader;
 import android.location.Location;
 import android.os.Handler;
 import android.os.Looper;
@@ -59,7 +63,6 @@ import org.maplibre.android.style.layers.FillLayer;
 import org.maplibre.android.style.layers.Layer;
 import org.maplibre.android.style.layers.Property;
 import org.maplibre.android.style.layers.PropertyFactory;
-import org.maplibre.android.style.layers.TransitionOptions;
 import org.maplibre.geojson.Point;
 import org.maplibre.geojson.Polygon;
 import org.maplibre.turf.TurfConstants;
@@ -177,13 +180,9 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
     private Line mSquareOutline = null;
     private List<Point> mSquareCorners = null;
 
-    // Layer opacity animation state (native animation for performance)
+    // Layer opacity for loading indicator
     private static final String ANIMATION_LAYER_ID = "crop-polygon-x-pattern";
-    private enum AnimationState { IDLE, ANIMATING }
-    private AnimationState mAnimationState = AnimationState.IDLE;
-    private boolean mOpacityHigh = false;
-    private Handler mAnimationHandler = new Handler(Looper.getMainLooper());
-    private Runnable mAnimationRunnable;
+    private boolean mLoadingLayerVisible = false;
 
     private long mActiveMarkerID = -1;
 
@@ -888,18 +887,18 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
     @Override
     public void onWillStartRenderingFrame() {
         handleMapChangedEvent(EventTypes.WILL_START_RENDERING_FRAME);
-        // Auto-start native layer animation when frame rendering begins
-        startLayerAnimation();
     }
 
     @Override
     public void onDidFinishRenderingFrame(boolean fully, double frameEncodingTime, double frameRenderingTime) {
         if (fully) {
             handleMapChangedEvent(EventTypes.DID_FINISH_RENDERING_FRAME_FULLY);
-            // Auto-stop native layer animation when frame is fully rendered
-            stopLayerAnimation();
+            // Tiles fully loaded - hide loading layer
+            hideLoadingLayer();
         } else {
             handleMapChangedEvent(EventTypes.DID_FINISH_RENDERING_FRAME);
+            // Tiles still loading - show loading layer
+            showLoadingLayer();
         }
     }
 
@@ -1871,17 +1870,15 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
         }
     }
 
-    // ==================== Native Layer Animation ====================
+    // ==================== Native Loading Layer Show/Hide ====================
 
     /**
-     * Starts the layer opacity animation for crop-polygon-x-pattern.
-     * Uses GPU-accelerated transitions for smooth animation without burning CPU.
-     * Ignores calls if already animating (prevents restart/stutter).
+     * Shows the loading layer (sets opacity to 0.5).
+     * Called when tiles are loading. Ignores if already visible.
      */
-    private void startLayerAnimation() {
-        // CRITICAL: Ignore if already animating (Paulo's requirement)
-        if (mAnimationState == AnimationState.ANIMATING) {
-            return;
+    private void showLoadingLayer() {
+        if (mLoadingLayerVisible) {
+            return; // Already visible
         }
         if (mMap == null || mMap.getStyle() == null) {
             return;
@@ -1889,59 +1886,32 @@ public class MLRNMapView extends MapView implements OnMapReadyCallback, MapLibre
 
         Layer layer = mMap.getStyle().getLayer(ANIMATION_LAYER_ID);
         if (!(layer instanceof FillLayer)) {
-            // Layer doesn't exist yet, that's fine - skip animation
             return;
         }
 
-        FillLayer fillLayer = (FillLayer) layer;
-
-        // Set GPU transition for smooth interpolation (1400ms matches toggle interval)
-        fillLayer.setFillOpacityTransition(new TransitionOptions(1400, 0, false));
-
-        // Set initial opacity
-        mOpacityHigh = false;
-        fillLayer.setProperties(PropertyFactory.fillOpacity(0.15f));
-
-        mAnimationState = AnimationState.ANIMATING;
-
-        // Initialize the runnable if not already done
-        if (mAnimationRunnable == null) {
-            mAnimationRunnable = new Runnable() {
-                @Override
-                public void run() {
-                    if (mAnimationState != AnimationState.ANIMATING) return;
-                    if (mMap == null || mMap.getStyle() == null) return;
-
-                    Layer animLayer = mMap.getStyle().getLayer(ANIMATION_LAYER_ID);
-                    if (animLayer instanceof FillLayer) {
-                        // Toggle opacity (GPU handles the transition interpolation)
-                        mOpacityHigh = !mOpacityHigh;
-                        float targetOpacity = mOpacityHigh ? 0.5f : 0.15f;
-                        ((FillLayer) animLayer).setProperties(PropertyFactory.fillOpacity(targetOpacity));
-                    }
-
-                    // Schedule next toggle
-                    mAnimationHandler.postDelayed(this, 1400);
-                }
-            };
-        }
-
-        // Start the toggle cycle
-        mAnimationHandler.postDelayed(mAnimationRunnable, 1400);
+        ((FillLayer) layer).setProperties(PropertyFactory.fillOpacity(0.8f));
+        mLoadingLayerVisible = true;
     }
 
     /**
-     * Stops the layer opacity animation.
-     * Removes pending callbacks and resets state.
+     * Hides the loading layer (sets opacity to 0).
+     * Called when tiles are fully loaded. Ignores if already hidden.
      */
-    public void stopLayerAnimation() {
-        if (mAnimationState == AnimationState.IDLE) {
-            return; // Already stopped
+    private void hideLoadingLayer() {
+        if (!mLoadingLayerVisible) {
+            return; // Already hidden
+        }
+        if (mMap == null || mMap.getStyle() == null) {
+            return;
         }
 
-        mAnimationHandler.removeCallbacks(mAnimationRunnable);
-        mAnimationState = AnimationState.IDLE;
-        Log.d(LOG_TAG, "stopLayerAnimation: stopped");
+        Layer layer = mMap.getStyle().getLayer(ANIMATION_LAYER_ID);
+        if (!(layer instanceof FillLayer)) {
+            return;
+        }
+
+        ((FillLayer) layer).setProperties(PropertyFactory.fillOpacity(0f));
+        mLoadingLayerVisible = false;
     }
 
     // ==================== Circle Drawing Methods ====================

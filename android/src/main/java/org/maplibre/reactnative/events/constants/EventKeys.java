@@ -32,9 +32,6 @@ public class EventKeys {
     // circle drawing events
     public static final String CIRCLE_DRAW_END = ns("map.circledrawend");
 
-    // square drawing events
-    public static final String SQUARE_DRAW_END = ns("map.squaredrawend");
-
     private static String ns(String name) {
         return String.format("%s.%s", NAMESPACE, name);
     }

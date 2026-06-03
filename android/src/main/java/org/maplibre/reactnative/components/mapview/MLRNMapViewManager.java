@@ -223,16 +223,16 @@ public class MLRNMapViewManager extends AbstractEventEmitter<MLRNMapView> {
         }
     }
 
+    @ReactProp(name = "drawingLineColor")
+    public void setDrawingLineColor(MLRNMapView mapView, @Nullable String color) {
+        if (color == null) return;
+        mapView.setDrawingLineColor(color);
+    }
+
     @ReactProp(name = "circleDrawingEnabled")
     public void setCircleDrawingEnabled(MLRNMapView mapView, boolean enabled) {
         Log.d(LOG_TAG, "setCircleDrawingEnabled: " + enabled);
         mapView.setCircleDrawingEnabled(enabled);
-    }
-
-    @ReactProp(name = "squareDrawingEnabled")
-    public void setSquareDrawingEnabled(MLRNMapView mapView, boolean enabled) {
-        Log.d(LOG_TAG, "setSquareDrawingEnabled: " + enabled);
-        mapView.setSquareDrawingEnabled(enabled);
     }
 
     @ReactProp(name = "setLayerOpacity")
@@ -257,7 +257,6 @@ public class MLRNMapViewManager extends AbstractEventEmitter<MLRNMapView> {
                 .put(EventKeys.MAP_USER_TRACKING_MODE_CHANGE, "onUserTrackingModeChange")
                 .put(EventKeys.MAP_ANDROID_CALLBACK, "onAndroidCallback")
                 .put(EventKeys.CIRCLE_DRAW_END, "onCircleDrawEnd")
-                .put(EventKeys.SQUARE_DRAW_END, "onSquareDrawEnd")
                 .build();
     }
 

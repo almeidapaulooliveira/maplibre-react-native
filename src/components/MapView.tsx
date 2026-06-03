@@ -238,20 +238,6 @@ interface MapViewProps extends BaseProps {
     center: GeoJSON.Position;
     radius: number;
   }) => void;
-  /**
-   * [Android only] Enable square drawing mode - touch-drag gesture to draw squares.
-   * Touch sets center, drag sets size (1:1 aspect ratio), release finalizes.
-   */
-  squareDrawingEnabled?: boolean;
-  /**
-   * [Android only] Callback when square drawing is completed.
-   * Returns coordinates array (5 points for closed polygon), center point, and side length in meters.
-   */
-  onSquareDrawEnd?: (event: {
-    coordinates: GeoJSON.Position[];
-    center: GeoJSON.Position;
-    sideLength: number;
-  }) => void;
 
   children?: ReactNode;
 }
@@ -263,7 +249,7 @@ type CallableProps = {
     : never;
 }[keyof MapViewProps];
 
-interface NativeProps extends Omit<MapViewProps, "onPress" | "onLongPress" | "onCircleDrawEnd" | "onSquareDrawEnd"> {
+interface NativeProps extends Omit<MapViewProps, "onPress" | "onLongPress" | "onCircleDrawEnd"> {
   mapStyle?: string;
   onPress(event: NativeSyntheticEvent<{ payload: GeoJSON.Feature }>): void;
   onLongPress(event: NativeSyntheticEvent<{ payload: GeoJSON.Feature }>): void;
@@ -272,13 +258,6 @@ interface NativeProps extends Omit<MapViewProps, "onPress" | "onLongPress" | "on
       coordinates: number[][];
       center: number[];
       radius: number;
-    };
-  }>): void;
-  onSquareDrawEnd?(event: NativeSyntheticEvent<{
-    payload: {
-      coordinates: number[][];
-      center: number[];
-      sideLength: number;
     };
   }>): void;
 }
@@ -315,6 +294,7 @@ export interface MapViewRef {
   updateDrawingLine: (coordinates: GeoJSON.Position[]) => void;
   clearDrawing: () => void;
   removeLastDrawingVertex: () => void;
+  setDrawColor: (color: string) => void;
   setLayerOpacity: (layerId: string, opacity: number) => void;
 }
 
@@ -441,6 +421,7 @@ export const MapView = memo(
           updateDrawingLine,
           clearDrawing,
           removeLastDrawingVertex,
+          setDrawColor,
           setLayerOpacity,
         }),
       );
@@ -686,25 +667,6 @@ export const MapView = memo(
         }
       };
 
-      const _onSquareDrawEnd = (
-        e: NativeSyntheticEvent<{
-          payload: {
-            coordinates: number[][];
-            center: number[];
-            sideLength: number;
-          };
-        }>,
-      ): void => {
-        if (isFunction(props.onSquareDrawEnd)) {
-          const { coordinates, center, sideLength } = e.nativeEvent.payload;
-          props.onSquareDrawEnd({
-            coordinates: coordinates as GeoJSON.Position[],
-            center: center as GeoJSON.Position,
-            sideLength,
-          });
-        }
-      };
-
       const _onRegionWillChange = (payload: RegionPayloadFeature): void => {
         if (isFunction(props.onRegionWillChange)) {
           props.onRegionWillChange(payload);
@@ -870,6 +832,12 @@ export const MapView = memo(
         }
       };
 
+      const setDrawColor = (color: string): void => {
+        if (_nativeRef.current) {
+          _nativeRef.current.setNativeProps({ drawingLineColor: color });
+        }
+      };
+
       const setLayerOpacity = (layerId: string, opacity: number): void => {
         if (_nativeRef.current) {
           _nativeRef.current.setNativeProps({
@@ -901,7 +869,6 @@ export const MapView = memo(
           surfaceView,
           instantTapEnabled: props.instantTapEnabled,
           circleDrawingEnabled: props.circleDrawingEnabled,
-          squareDrawingEnabled: props.squareDrawingEnabled,
           regionWillChangeDebounceTime,
           regionDidChangeDebounceTime,
           mapStyle: nativeMapStyle,
@@ -929,7 +896,6 @@ export const MapView = memo(
         onMapChange: _onChange,
         onAndroidCallback: isAndroid() ? _onAndroidCallback : undefined,
         onCircleDrawEnd: isAndroid() ? _onCircleDrawEnd : undefined,
-        onSquareDrawEnd: isAndroid() ? _onSquareDrawEnd : undefined,
       };
 
       let mapView: ReactElement | null = null;
